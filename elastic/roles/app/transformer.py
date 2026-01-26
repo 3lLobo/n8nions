@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Optional
 
+
 class RoleTransformer:
     """Handles the transformation of role permissions between clusters."""
 
@@ -9,7 +10,7 @@ class RoleTransformer:
     def transform(self, role_body: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Applies mapping, wildcards, and exclusions to the role body.
-        
+
         Returns:
             Modified dict, or None if the role should be excluded entirely.
         """
@@ -50,7 +51,7 @@ class RoleTransformer:
                 app["resources"] = updated_resources
                 new_apps.append(app)
 
-        # If all application blocks were excluded, you might want to 
+        # If all application blocks were excluded, you might want to
         # return None or an empty list depending on your security needs.
         role_body["applications"] = new_apps
         return role_body
