@@ -1,21 +1,20 @@
 from typing import Any, Dict, List, Optional
 from elasticsearch import Elasticsearch
 from config import AppConfig, ElasticConfig
+from app import RoleTransformer
+
 
 class ElasticRoleManager:
     """
     A service class to manage and synchronize roles between Elasticsearch clusters.
-    
+
     Attributes:
         client: The Elasticsearch client instance.
     """
 
     def __init__(self, config: ElasticConfig):
         """Initializes the client with the provided configuration."""
-        self.client = Elasticsearch(
-            hosts=[config.host],
-            api_key=config.api_key
-        )
+        self.client = Elasticsearch(hosts=[config.host], api_key=config.api_key)
 
     def get_role_permissions(self, role_name: str) -> Dict[str, Any]:
         """
@@ -59,40 +58,58 @@ class ElasticRoleManager:
 class RoleSyncOrchestrator:
     """Orchestrates the data flow between two ElasticRoleManager instances."""
 
-    def __init__(self, source_mgr: ElasticRoleManager, dest_mgr: ElasticRoleManager):
+    def __init__(
+        self,
+        source_mgr: ElasticRoleManager,
+        dest_mgr: ElasticRoleManager,
+        transformer: RoleTransformer,
+    ):
         self.source = source_mgr
         self.dest = dest_mgr
+        self.transformer = transformer
 
     def sync_role(self, role_name: str) -> None:
         """
         Executes the full sync process for a single role.
-        
+
         Args:
             role_name: The role identifier to sync.
         """
         try:
             print(f"[*] Fetching permissions for: {role_name}")
-            permissions = self.source.get_role_permissions(role_name)
-            
-            print(f"[*] Applying permissions to destination...")
-            result = self.dest.update_role(role_name, permissions)
-            
-            print(f"[+] Successfully synced role: {role_name}")
+            raw_permissions = self.source.get_role_permissions(role_name)
+            # Apply transformation feature
+            transformed_body = self.transformer.transform(raw_permissions)
+
+            if transformed_body is None:
+                print(f"[-] Role {role_name} skipped due to exclusion rules.")
+                return
+
+            self.dest.update_role(role_name, transformed_body)
+            print(f"[+] Successfully synced and transformed role: {role_name}")
+
         except Exception as e:
-            print(f"[!] Sync failed for {role_name}: {str(e)}")
+            print(f"[!] Sync failed: {str(e)}")
+
 
 def main() -> None:
     """Main entry point for the automation script."""
     source_manager = ElasticRoleManager(AppConfig.SOURCE)
     dest_manager = ElasticRoleManager(AppConfig.DESTINATION)
-    
-    orchestrator = RoleSyncOrchestrator(source_manager, dest_manager)
-    
+    role_transformer = RoleTransformer(AppConfig.SPACE_MAPPING)
+
+    orchestrator = RoleSyncOrchestrator(
+        source_manager,
+        dest_manager,
+        role_transformer,
+    )
+
     try:
         orchestrator.sync_role(AppConfig.ROLE_NAME)
     finally:
         source_manager.close()
         dest_manager.close()
+
 
 if __name__ == "__main__":
     main()
