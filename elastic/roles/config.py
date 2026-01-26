@@ -1,5 +1,6 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Dict
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,3 +22,10 @@ class AppConfig:
         api_key=os.getenv("DEST_ES_API_KEY", "")
     )
     ROLE_NAME = os.getenv("ROLE_NAME", "my_role")
+
+    # Mapping logic: {"source_space": "dest_space"}
+    # Special values: "*" for all spaces, "!" to exclude
+    SPACE_MAPPING: Dict[str, str] = field(default_factory=lambda: {
+        "space1": "*",
+        "space2": "!"
+    })
